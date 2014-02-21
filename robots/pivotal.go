@@ -100,6 +100,21 @@ type Task struct {
     Description string `json:"description"`
 }
 
+type Comment struct {
+    Person_ID int `json:"person_id"`
+    Kind string `json:"kind"`
+    ID int `json:"id"`
+    Updated_At string `json:"updated_at"`
+    Story_ID int `json:"story_id"`
+    Created_At string `json:"created_at"`
+    Text string `json:"text"`
+    Commit_Identifier string `json:"commit_identifier,omitempty"`
+    Commit_Type string `json:"commit_type,omitempty"`
+    Epic_ID int `json:"epic_id,omitempty"`
+    File_Attachment_IDs []int `json:file_attachment_ids,omitempty"`
+    Google_Attachment_IDs []int `json:google_attachment_ids,omitempty"`
+}
+
 var PivotalConfig = new(PivotalConfiguration)
 
 // Loads the config file and registers the bot with the server for command /${1/(.+)/\L\1/g}.
@@ -137,11 +152,44 @@ func (r PivotalBot) Run(command *SlashCommand) (slashCommandImmediateReturn stri
                 return r.Query(query)
             case "start", "unstart", "finish", "accept", "reject", "deliver":
                 return r.ChangeState(pivotal_command, query)
+            case "comment":
+                return r.AddComment(split[1], strings.Join(split[2:]))
         }
         return fmt.Sprintf("Unknown pivotal command: %s\n%s", pivotal_command, r.Description())
     } else {
         return ""
     }
+}
+
+func (r PivotalBot) AddComment(story_id string, comment string) (result string){
+        post_parameters := url.Values{}
+        post_parameters.Set("text", comment)
+        req, err := http.NewRequest("POST", fmt.Sprintf("https://www.pivotaltracker.com/services/v5/projects/%d/stories/%s/comments", PivotalConfig.Project_ID, story_id), nil)
+        if err != nil {
+            return fmt.Sprintf("ERROR: Error forming put request to Pivotal: %s", err)
+        }
+        req.URL.RawQuery = post_parameters.Encode()
+        req.Header.Add("X-TrackerToken", PivotalConfig.Token)
+        resp, err := http.DefaultClient.Do(req)
+        if err != nil {
+            return fmt.Sprintf("ERROR: Error making put request to Pivotal: %s", err)
+        }
+        defer resp.Body.Close()
+        if resp.StatusCode != 200 {
+            message := fmt.Sprintf("ERROR: Non-200 Response from Pivotal API: %s", resp.Status)
+            log.Println(message)
+            return message
+        }
+        contents, err := ioutil.ReadAll(resp.Body)
+        if err != nil {
+            return fmt.Sprintf("ERROR: Error reading response body from Pivotal: %s", err)
+        }
+        comment := new(Comment)
+        err = json.Unmarshal(contents, &story)
+        if err != nil {
+            return fmt.Sprintf("ERROR: Couldn't unmarshal pivotal story response into struct: %s", err)
+        }
+        return fmt.Sprintf("[<https://www.pivotaltracker.com/s/projects/%d/stories/%s|#%s>] - %s", PivotalConfig.Project_ID, story_id, story_id, comment.Text)
 }
 
 func (r PivotalBot) ChangeState(new_state string, story_id string) (result string) {
