@@ -153,7 +153,7 @@ func (r PivotalBot) Run(command *SlashCommand) (slashCommandImmediateReturn stri
             case "start", "unstart", "finish", "accept", "reject", "deliver":
                 return r.ChangeState(pivotal_command, query)
             case "comment":
-                return r.AddComment(split[1], strings.Join(split[2:]))
+                return r.AddComment(split[1], strings.Join(split[2:], " "))
         }
         return fmt.Sprintf("Unknown pivotal command: %s\n%s", pivotal_command, r.Description())
     } else {
@@ -184,12 +184,12 @@ func (r PivotalBot) AddComment(story_id string, comment string) (result string){
         if err != nil {
             return fmt.Sprintf("ERROR: Error reading response body from Pivotal: %s", err)
         }
-        comment := new(Comment)
-        err = json.Unmarshal(contents, &story)
+        comment_resp := new(Comment)
+        err = json.Unmarshal(contents, &comment_resp)
         if err != nil {
             return fmt.Sprintf("ERROR: Couldn't unmarshal pivotal story response into struct: %s", err)
         }
-        return fmt.Sprintf("[<https://www.pivotaltracker.com/s/projects/%d/stories/%s|#%s>] - %s", PivotalConfig.Project_ID, story_id, story_id, comment.Text)
+        return fmt.Sprintf("[<https://www.pivotaltracker.com/s/projects/%d/stories/%s|#%s>] - %s", PivotalConfig.Project_ID, story_id, story_id, comment_resp.Text)
 }
 
 func (r PivotalBot) ChangeState(new_state string, story_id string) (result string) {
